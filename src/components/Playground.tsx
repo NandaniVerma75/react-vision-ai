@@ -162,51 +162,28 @@ export const Playground = () => {
     // Save user message
     await saveMessage('user', content, imageUrl);
     
-    // Simulate AI response for now (replace with actual AI integration later)
-    setTimeout(async () => {
-      const mockResponse = `I'll help you create a React component. Here's a simple example:
+    try {
+      // Call AI generation function
+      const { data, error } = await supabase.functions.invoke('generate-component', {
+        body: { 
+          prompt: content,
+          messages: messages.slice(-10) // Include last 10 messages for context
+        }
+      });
 
-\`\`\`jsx
-const Button = ({ children, onClick, variant = 'primary' }) => {
-  return (
-    <button 
-      className={\`px-4 py-2 rounded transition-all \${
-        variant === 'primary' 
-          ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-          : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-      }\`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-};
+      if (error) {
+        console.error('Error calling AI function:', error);
+        await saveMessage('assistant', 'Sorry, I encountered an error generating the component. Please try again.');
+        setIsLoading(false);
+        return;
+      }
 
-export default Button;
-\`\`\`
-
-\`\`\`css
-.button {
-  font-family: 'Inter', sans-serif;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.button:focus {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
-}
-\`\`\``;
-
-      await saveMessage('assistant', mockResponse);
+      const aiResponse = data.generatedText;
+      await saveMessage('assistant', aiResponse);
       
       // Extract and update generated code
-      const jsxMatch = mockResponse.match(/```jsx\n([\s\S]*?)\n```/);
-      const cssMatch = mockResponse.match(/```css\n([\s\S]*?)\n```/);
+      const jsxMatch = aiResponse.match(/```jsx\n([\s\S]*?)\n```/) || aiResponse.match(/```tsx\n([\s\S]*?)\n```/);
+      const cssMatch = aiResponse.match(/```css\n([\s\S]*?)\n```/);
       
       if (jsxMatch || cssMatch) {
         await updateSession({
@@ -215,8 +192,12 @@ export default Button;
         });
       }
       
-      setIsLoading(false);
-    }, 2000);
+    } catch (error) {
+      console.error('Error generating component:', error);
+      await saveMessage('assistant', 'Sorry, I encountered an error generating the component. Please try again.');
+    }
+    
+    setIsLoading(false);
   };
 
   if (showSessionManager) {
